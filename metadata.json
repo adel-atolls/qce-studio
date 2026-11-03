@@ -1,0 +1,7 @@
+{
+  "name": "QC Tester Studio",
+  "description": "Internal workspace for Quality Control Editors and Testers featuring AI link regex generation, real-time in-progress task management, team directory, and live notification updates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
