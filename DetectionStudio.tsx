@@ -60,7 +60,6 @@ function cleanIncomingHtml(html: string) {
     .trim();
 }
 
-// Preloaded realistic checkout snippets
 const PRESETS = [
   {
     id: 'rua-do-cafe',
@@ -72,8 +71,6 @@ const PRESETS = [
   <div class="cart-items">
     <div class="item">Café Especial Arábica Mogiana 250g - R$ 64,95 (x2)</div>
   </div>
-
-  <!-- Coupon / Discount Section -->
   <div class="discount-box container-cupom">
     <label for="cupom-input" class="label-cupom">Possui cupom ou código de desconto?</label>
     <div class="input-group">
@@ -93,8 +90,6 @@ const PRESETS = [
       </button>
     </div>
   </div>
-
-  <!-- Price Summary -->
   <div class="order-summary-totals">
     <div class="row-subtotal">
       <span class="label">Subtotal dos produtos:</span>
@@ -110,11 +105,6 @@ const PRESETS = [
     </div>
   </div>
 </div>`,
-    mockBox: {
-      coupon: { ymin: 300, xmin: 150, ymax: 360, xmax: 600 },
-      button: { ymin: 300, xmin: 615, ymax: 360, xmax: 780 },
-      total: { ymin: 660, xmin: 500, ymax: 720, xmax: 820 },
-    },
   },
   {
     id: 'shopify-us',
@@ -172,11 +162,6 @@ const PRESETS = [
     </table>
   </div>
 </aside>`,
-    mockBox: {
-      coupon: { ymin: 240, xmin: 100, ymax: 300, xmax: 650 },
-      button: { ymin: 240, xmin: 665, ymax: 300, xmax: 820 },
-      total: { ymin: 710, xmin: 620, ymax: 760, xmax: 880 },
-    },
   },
   {
     id: 'french-cdiscount',
@@ -204,7 +189,6 @@ const PRESETS = [
       </button>
     </div>
   </div>
-
   <div class="lignes-totaux">
     <p>Sous-total articles: 179,50 €</p>
     <p>Frais de livraison: 10,00 €</p>
@@ -214,11 +198,6 @@ const PRESETS = [
     </div>
   </div>
 </div>`,
-    mockBox: {
-      coupon: { ymin: 280, xmin: 120, ymax: 340, xmax: 620 },
-      button: { ymin: 280, xmin: 640, ymax: 340, xmax: 800 },
-      total: { ymin: 680, xmin: 520, ymax: 740, xmax: 850 },
-    },
   },
   {
     id: 'edge-case-missing',
@@ -236,11 +215,6 @@ const PRESETS = [
   </div>
   <button id="instant-stripe-btn">Pay with Apple Pay</button>
 </div>`,
-    mockBox: {
-      coupon: undefined,
-      button: undefined,
-      total: { ymin: 550, xmin: 400, ymax: 610, xmax: 750 },
-    },
   },
   {
     id: 'brazil-collapsed-trigger',
@@ -249,7 +223,6 @@ const PRESETS = [
     language: 'Portuguese (BR)',
     description: 'Collapsed coupon form: hidden input and submit button behind "Adicionar cupom de desconto" button trigger.',
     html: `<div class="checkout-payment-box">
-  <!-- Trigger button to reveal collapsed coupon form -->
   <button 
     type="button"
     id="toggle-coupon-btn" 
@@ -257,12 +230,10 @@ const PRESETS = [
     aria-expanded="false" 
     data-toggle="collapse"
   >
-    <svg class="icon-tag" width="16" height="16" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+    <svg class="icon-tag" width="16" height="16" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path></svg>
     Adicionar cupom de desconto
     <span class="chevron-down">▼</span>
   </button>
-
-  <!-- Collapsed/Hidden Coupon Form Container (display: none) -->
   <div id="coupon-form-container" class="coupon-container collapse hidden" style="display: none;">
     <input 
       type="text" 
@@ -278,8 +249,6 @@ const PRESETS = [
       Aplicar
     </button>
   </div>
-
-  <!-- Price Summary with Grand Total strictly separated from subtotal and shipping -->
   <div class="resumo-valores">
     <div class="linha-subtotal">Subtotal dos itens: R$ 89,90</div>
     <div class="linha-frete">Frete Expresso: R$ 0,00</div>
@@ -289,12 +258,6 @@ const PRESETS = [
     </div>
   </div>
 </div>`,
-    mockBox: {
-      trigger: { ymin: 240, xmin: 120, ymax: 295, xmax: 560 },
-      coupon: { ymin: 310, xmin: 120, ymax: 360, xmax: 580 },
-      button: { ymin: 310, xmin: 595, ymax: 360, xmax: 760 },
-      total: { ymin: 650, xmin: 480, ymax: 710, xmax: 820 },
-    },
   },
 ];
 
@@ -310,14 +273,11 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [activePresetId, setActivePresetId] = useState<string>(PRESETS[0].id);
 
-  // Analysis State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<DetectionResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [activeHighlightElement, setActiveHighlightElement] = useState<string | null>(null);
 
-  // External Chrome Extension DOM Detection State
   const [externalLoading, setExternalLoading] = useState(false);
   const [externalError, setExternalError] = useState<string | null>(null);
   const [externalCurrentUrl, setExternalCurrentUrl] = useState<string>('');
@@ -325,7 +285,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
   const [externalResult, setExternalResult] = useState<CheckoutDetectionStructuredResult | null>(null);
   const [externalHistory, setExternalHistory] = useState<CheckoutDetectionHistoryItem[]>([]);
 
-  // Copy helper
   const handleCopy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
@@ -335,9 +294,7 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
   useEffect(() => {
     try {
       const raw = localStorage.getItem('checkout-detection-external-history');
-      if (raw) {
-        setExternalHistory(JSON.parse(raw));
-      }
+      if (raw) setExternalHistory(JSON.parse(raw));
     } catch {
       // ignore
     }
@@ -386,7 +343,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
       }
 
       setExternalResult(data.result);
-
       saveExternalHistory({
         url: data.url || payload.url,
         analyzedAt: data.analyzedAt || new Date().toISOString(),
@@ -420,14 +376,14 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
       ) => {
         if (message?.type === 'INSPECT_CHECKOUT_HTML') {
           analyzeExternalPayload(message);
-          if (sendResponse) sendResponse({ ok: true });
+          sendResponse?.({ ok: true });
         }
       };
 
       try {
         chromeRuntime.onMessageExternal.addListener(externalListener);
       } catch {
-        // fallback only
+        // ignore
       }
     }
 
@@ -443,7 +399,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
     };
   }, [analyzeExternalPayload]);
 
-  // Load a preset
   const handleSelectPreset = (preset: typeof PRESETS[0]) => {
     setActivePresetId(preset.id);
     setHtmlInput(preset.html);
@@ -451,7 +406,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
     setErrorMsg(null);
   };
 
-  // Image upload handler
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -471,7 +425,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
     reader.readAsDataURL(file);
   };
 
-  // Execute Detection Analysis
   const handleRunAnalysis = async () => {
     if (!htmlInput.trim() && !screenshotBase64) {
       setErrorMsg('Please provide an HTML snippet, a checkout screenshot, or select a preset.');
@@ -508,13 +461,11 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
     }
   };
 
-  // Initial auto-run with Preset 0 on mount if no result
-  React.useEffect(() => {
+  useEffect(() => {
     handleRunAnalysis();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Convert detection result into a structured QC Verification Task on the In Progress board
   const handleCreateQCTaskFromDetection = () => {
     if (!analysisResult) return;
 
@@ -567,14 +518,11 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
       bugsFound: missingCount,
     };
 
-    if (onAddTask) {
-      onAddTask(newTask);
-    }
+    onAddTask?.(newTask);
   };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      {/* External Extension DOM Reception */}
       <div className="rounded-2xl border border-cyan-500/20 bg-slate-900/80 shadow-xl overflow-hidden">
         <div className="p-5 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="space-y-2">
@@ -828,7 +776,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
         </div>
       </div>
 
-      {/* Top Header / Persona Directive Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-900/60 p-6 shadow-xl">
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
@@ -847,10 +794,10 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-3xl leading-relaxed">
               Extract and strictly isolate key checkout elements from user input (screenshot or HTML snippet):
-              <strong className="text-indigo-300"> 1. Coupon Input</strong> (placeholder & visibility status),
-              <strong className="text-indigo-300"> 2. Submit / Apply Button</strong> (action/icon & visibility),
-              <strong className="text-emerald-300"> 3. Grand Total</strong> (strictly isolates final transaction amount from subtotal & shipping), and
-              <strong className="text-purple-300"> 4. Show Form Trigger</strong> (detects hidden/collapsed coupon forms and extracts reveal buttons).
+              <strong className="text-indigo-300"> 1. Coupon Input</strong>,
+              <strong className="text-indigo-300"> 2. Submit / Apply Button</strong>,
+              <strong className="text-emerald-300"> 3. Grand Total</strong>, and
+              <strong className="text-purple-300"> 4. Show Form Trigger</strong>.
             </p>
           </div>
 
@@ -867,7 +814,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
         </div>
       </div>
 
-      {/* Preset Selector Bar */}
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs text-slate-400">
           <span className="font-semibold text-slate-300 flex items-center gap-1.5">
@@ -895,9 +841,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-400">
                       {preset.language}
                     </span>
-                    {isSelected && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" />
-                    )}
                   </div>
                   <div className="text-xs font-bold text-slate-200 line-clamp-1">{preset.title}</div>
                   <div className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
@@ -913,12 +856,9 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
         </div>
       </div>
 
-      {/* Input Section & Analysis Trigger */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Input Form (HTML / Screenshot) */}
         <div className="lg:col-span-5 space-y-4">
           <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-md space-y-4">
-            {/* Input Mode Toggle */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 Input Source
@@ -927,9 +867,7 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
                 <button
                   onClick={() => setInputMode('html')}
                   className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                    inputMode === 'html'
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-400 hover:text-white'
+                    inputMode === 'html' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   <FileCode className="w-3.5 h-3.5" />
@@ -938,9 +876,7 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
                 <button
                   onClick={() => setInputMode('image')}
                   className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                    inputMode === 'image'
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-400 hover:text-white'
+                    inputMode === 'image' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   <Image className="w-3.5 h-3.5" />
@@ -949,9 +885,7 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
                 <button
                   onClick={() => setInputMode('combined')}
                   className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                    inputMode === 'combined'
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-400 hover:text-white'
+                    inputMode === 'combined' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   <Layers className="w-3.5 h-3.5" />
@@ -960,7 +894,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
               </div>
             </div>
 
-            {/* Target URL Reference (Optional) */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
                 <span>Target Checkout URL</span>
@@ -983,7 +916,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
               />
             </div>
 
-            {/* HTML Snippet Field */}
             {(inputMode === 'html' || inputMode === 'combined') && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -1007,7 +939,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
               </div>
             )}
 
-            {/* Screenshot Upload Field */}
             {(inputMode === 'image' || inputMode === 'combined') && (
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
@@ -1032,11 +963,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
                       alt="Uploaded checkout screenshot"
                       className="object-contain w-full h-auto max-h-56"
                     />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                      <span className="text-xs text-white font-medium bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-700">
-                        Screenshot ready for multimodal scan
-                      </span>
-                    </div>
                   </div>
                 ) : (
                   <label className="border-2 border-dashed border-slate-800 hover:border-indigo-500/60 rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition bg-slate-950/40 hover:bg-slate-950">
@@ -1058,7 +984,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
               </div>
             )}
 
-            {/* Error Message */}
             {errorMsg && (
               <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -1066,7 +991,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
               </div>
             )}
 
-            {/* Run Button */}
             <button
               onClick={handleRunAnalysis}
               disabled={isAnalyzing}
@@ -1087,11 +1011,9 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Structured Detection Results */}
         <div className="lg:col-span-7 space-y-4">
           {analysisResult ? (
             <div className="space-y-4">
-              {/* Overview Metrics Ribbon */}
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div
@@ -1120,7 +1042,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
                     <button
                       onClick={handleCreateQCTaskFromDetection}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition cursor-pointer"
-                      title="Create a QC Verification Task on the In Progress Board"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Create QC Task</span>
@@ -1129,321 +1050,6 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
                 </div>
               </div>
 
-              {/* Three Strict Checkout Element Cards */}
-              <div className="space-y-3">
-                {/* 1. COUPON INPUT CARD */}
-                <div
-                  onMouseEnter={() => setActiveHighlightElement('coupon')}
-                  onMouseLeave={() => setActiveHighlightElement(null)}
-                  className={`p-4 rounded-2xl border transition ${
-                    analysisResult.couponInput.found
-                      ? 'bg-slate-900/90 border-slate-800 hover:border-indigo-500/60'
-                      : 'bg-rose-950/20 border-rose-900/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-                        <BadgePercent className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-200">
-                        1. Coupon / Promo Code Input
-                      </span>
-                    </div>
-
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                        analysisResult.couponInput.found
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                      }`}
-                    >
-                      {analysisResult.couponInput.found ? (
-                        <>
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>FOUND</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertTriangle className="w-3 h-3" />
-                          <span>NOT FOUND</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-
-                  {analysisResult.couponInput.found ? (
-                    <div className="space-y-2 text-xs">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {analysisResult.couponInput.selector && (
-                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                            <div className="text-[10px] font-mono uppercase text-slate-500 mb-1 flex items-center justify-between">
-                              <span>CSS Selector / DOM ID</span>
-                              <button
-                                onClick={() =>
-                                  handleCopy(analysisResult.couponInput.selector!, 'sel-coupon')
-                                }
-                                className="text-slate-400 hover:text-white transition"
-                                title="Copy Selector"
-                              >
-                                {copiedKey === 'sel-coupon' ? (
-                                  <Check className="w-3 h-3 text-emerald-400" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </button>
-                            </div>
-                            <div className="font-mono text-indigo-300 truncate">
-                              {analysisResult.couponInput.selector}
-                            </div>
-                          </div>
-                        )}
-
-                        {analysisResult.couponInput.valueOrText && (
-                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                            <div className="text-[10px] font-mono uppercase text-slate-500 mb-1">
-                              Placeholder / Label Text
-                            </div>
-                            <div className="text-slate-200 truncate font-medium">
-                              "{analysisResult.couponInput.valueOrText}"
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {analysisResult.couponInput.multilingualMatch && (
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                          <span className="text-slate-500">Keyword Detected:</span>
-                          <span className="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 font-mono">
-                            {analysisResult.couponInput.multilingualMatch}
-                          </span>
-                        </div>
-                      )}
-
-                      <p className="text-[11px] text-slate-400 leading-relaxed bg-slate-950/50 p-2 rounded-lg border border-slate-800/60">
-                        {analysisResult.couponInput.details}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-rose-300/80">
-                      {analysisResult.couponInput.details}
-                    </p>
-                  )}
-                </div>
-
-                {/* 2. SUBMIT / APPLY BUTTON CARD */}
-                <div
-                  onMouseEnter={() => setActiveHighlightElement('button')}
-                  onMouseLeave={() => setActiveHighlightElement(null)}
-                  className={`p-4 rounded-2xl border transition ${
-                    analysisResult.applyButton.found
-                      ? 'bg-slate-900/90 border-slate-800 hover:border-purple-500/60'
-                      : 'bg-rose-950/20 border-rose-900/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
-                        <Send className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-200">
-                        2. Submit / Apply Button
-                      </span>
-                    </div>
-
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                        analysisResult.applyButton.found
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                      }`}
-                    >
-                      {analysisResult.applyButton.found ? (
-                        <>
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>FOUND</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertTriangle className="w-3 h-3" />
-                          <span>NOT FOUND</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-
-                  {analysisResult.applyButton.found ? (
-                    <div className="space-y-2 text-xs">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {analysisResult.applyButton.selector && (
-                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                            <div className="text-[10px] font-mono uppercase text-slate-500 mb-1 flex items-center justify-between">
-                              <span>Button Selector / ID</span>
-                              <button
-                                onClick={() =>
-                                  handleCopy(analysisResult.applyButton.selector!, 'sel-btn')
-                                }
-                                className="text-slate-400 hover:text-white transition"
-                                title="Copy Selector"
-                              >
-                                {copiedKey === 'sel-btn' ? (
-                                  <Check className="w-3 h-3 text-emerald-400" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </button>
-                            </div>
-                            <div className="font-mono text-purple-300 truncate">
-                              {analysisResult.applyButton.selector}
-                            </div>
-                          </div>
-                        )}
-
-                        {analysisResult.applyButton.valueOrText && (
-                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                            <div className="text-[10px] font-mono uppercase text-slate-500 mb-1">
-                              Action Label / Icon
-                            </div>
-                            <div className="text-slate-200 truncate font-medium">
-                              "{analysisResult.applyButton.valueOrText}"
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                        {analysisResult.applyButton.proximityConfirmed && (
-                          <span className="flex items-center gap-1 text-emerald-400">
-                            <Check className="w-3 h-3" />
-                            <span>Proximity Confirmed (Directly adjacent to coupon input)</span>
-                          </span>
-                        )}
-                      </div>
-
-                      <p className="text-[11px] text-slate-400 leading-relaxed bg-slate-950/50 p-2 rounded-lg border border-slate-800/60">
-                        {analysisResult.applyButton.details}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-rose-300/80">
-                      {analysisResult.applyButton.details}
-                    </p>
-                  )}
-                </div>
-
-                {/* 3. FINAL TOTAL AMOUNT CARD (STRICT) */}
-                <div
-                  onMouseEnter={() => setActiveHighlightElement('total')}
-                  onMouseLeave={() => setActiveHighlightElement(null)}
-                  className={`p-4 rounded-2xl border transition ${
-                    analysisResult.totalAmount.found
-                      ? 'bg-slate-900/90 border-slate-800 hover:border-emerald-500/60'
-                      : 'bg-rose-950/20 border-rose-900/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                        <Coins className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-200">
-                        3. Grand Total Amount (Strict Rule)
-                      </span>
-                    </div>
-
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                        analysisResult.totalAmount.found
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                      }`}
-                    >
-                      {analysisResult.totalAmount.found ? (
-                        <>
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>STRICT TOTAL DETECTED</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertTriangle className="w-3 h-3" />
-                          <span>NOT FOUND</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-
-                  {analysisResult.totalAmount.found ? (
-                    <div className="space-y-2 text-xs">
-                      <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/50 via-slate-950 to-emerald-950/30 border border-emerald-500/30 flex items-center justify-between">
-                        <div>
-                          <div className="text-[10px] font-mono uppercase text-emerald-400 font-semibold">
-                            Final Transaction Amount
-                          </div>
-                          <div className="text-xl font-bold font-mono text-white tracking-tight mt-0.5">
-                            {analysisResult.totalAmount.valueOrText}
-                          </div>
-                        </div>
-
-                        <div className="text-right">
-                          <span className="text-[10px] font-mono px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
-                            Numeric: {analysisResult.totalAmount.currency || ''} {analysisResult.totalAmount.amount?.toFixed(2) || ''}
-                          </span>
-                          <div className="text-[10px] text-slate-400 mt-1">
-                            Rule: Subtotal & shipping excluded
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {analysisResult.totalAmount.selector && (
-                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                            <div className="text-[10px] font-mono uppercase text-slate-500 mb-1 flex items-center justify-between">
-                              <span>Total DOM Selector</span>
-                              <button
-                                onClick={() =>
-                                  handleCopy(analysisResult.totalAmount.selector!, 'sel-total')
-                                }
-                                className="text-slate-400 hover:text-white transition"
-                                title="Copy Selector"
-                              >
-                                {copiedKey === 'sel-total' ? (
-                                  <Check className="w-3 h-3 text-emerald-400" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </button>
-                            </div>
-                            <div className="font-mono text-emerald-300 truncate">
-                              {analysisResult.totalAmount.selector}
-                            </div>
-                          </div>
-                        )}
-
-                        {analysisResult.totalAmount.multilingualMatch && (
-                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                            <div className="text-[10px] font-mono uppercase text-slate-500 mb-1">
-                              Matched Total Label
-                            </div>
-                            <div className="text-slate-200 truncate font-medium">
-                              "{analysisResult.totalAmount.multilingualMatch}"
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <p className="text-[11px] text-slate-400 leading-relaxed bg-slate-950/50 p-2 rounded-lg border border-slate-800/60">
-                        {analysisResult.totalAmount.details}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-rose-300/80">
-                      {analysisResult.totalAmount.details}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* JSON Output Accordion / Export */}
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-mono font-semibold text-slate-400 flex items-center gap-1.5">
@@ -1451,9 +1057,7 @@ export const DetectionStudio: React.FC<DetectionStudioProps> = ({
                     <span>Raw Structured JSON Output</span>
                   </span>
                   <button
-                    onClick={() =>
-                      handleCopy(JSON.stringify(analysisResult, null, 2), 'raw-json')
-                    }
+                    onClick={() => handleCopy(JSON.stringify(analysisResult, null, 2), 'raw-json')}
                     className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
                   >
                     {copiedKey === 'raw-json' ? (
