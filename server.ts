@@ -11,6 +11,8 @@ import {
   RegexOptions,
   DetectionResult,
   DetectedElement,
+  ExternalCheckoutPayload,
+  CheckoutDetectionStructuredResult,
 } from './src/types.ts';
 
 dotenv.config();
@@ -1007,6 +1009,204 @@ function parseCheckoutDOMFallback(html: string): DetectionResult {
   return result;
 }
 
+function cleanCheckoutHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200000);
+}
+
+function parseCheckoutStructuredFallback(html: string): CheckoutDetectionStructuredResult {
+  const cleaned = html || '';
+
+  const result: CheckoutDetectionStructuredResult = {
+    show_form_trigger: {
+      exists: false,
+      required_to_click: false,
+      exact_css_selector: '',
+      inner_text: '',
+    },
+    coupon_input: {
+      exists: false,
+      is_hidden: false,
+      exact_css_selector: '',
+      placeholder: '',
+    },
+    coupon_button: {
+      exists: false,
+      is_hidden: false,
+      exact_css_selector: '',
+      button_type: '',
+    },
+    total_order: {
+      exists: false,
+      exact_css_selector: '',
+      raw_text: '',
+      numeric_value: 0,
+      currency: '',
+    },
+  };
+
+  // Detect coupon input
+  const inputMatches = cleaned.match(/<input[^>]+>/gi) || [];
+  let foundInputTag = '';
+  for (const tag of inputMatches) {
+    if (/(coupon|cupom|promo|voucher|discount|desconto|remise|c[oó]digo)/i.test(tag)) {
+      foundInputTag = tag;
+      break;
+    }
+  }
+
+  if (foundInputTag) {
+    const idMatch = foundInputTag.match(/id=["']([^"']+)["']/i);
+    const nameMatch = foundInputTag.match(/name=["']([^"']+)["']/i);
+    const classMatch = foundInputTag.match(/class=["']([^"']+)["']/i);
+    const placeholderMatch = foundInputTag.match(/placeholder=["']([^"']+)["']/i);
+
+    let selector = '';
+    if (idMatch) selector = `#${idMatch[1]}`;
+    else if (nameMatch) selector = `input[name="${nameMatch[1]}"]`;
+    else if (classMatch) selector = `input.${classMatch[1].trim().split(/\s+/)[0]}`;
+
+    const isHidden =
+      /style=["'][^"']*display:\s*none/i.test(foundInputTag) ||
+      /style=["'][^"']*visibility:\s*hidden/i.test(foundInputTag) ||
+      /\bhidden\b/i.test(foundInputTag) ||
+      /class=["'][^"']*(hidden|collapse|collapsed|d-none|invisible)[^"']*["']/i.test(foundInputTag);
+
+    result.coupon_input = {
+      exists: true,
+      is_hidden: isHidden,
+      exact_css_selector: selector,
+      placeholder: placeholderMatch?.[1] || '',
+    };
+  }
+
+  // Detect coupon button
+  const buttonMatches = [
+    ...(cleaned.match(/<button[^>]*>[\s\S]*?<\/button>/gi) || []),
+    ...(cleaned.match(/<input[^>]+type=["'](?:submit|button)["'][^>]*>/gi) || []),
+  ];
+
+  let foundButtonTag = '';
+  for (const tag of buttonMatches) {
+    if (/(apply|validar|aplicar|appliquer|redeem|usar|ok)/i.test(tag)) {
+      foundButtonTag = tag;
+      break;
+    }
+  }
+
+  if (foundButtonTag) {
+    const idMatch = foundButtonTag.match(/id=["']([^"']+)["']/i);
+    const classMatch = foundButtonTag.match(/class=["']([^"']+)["']/i);
+
+    let selector = '';
+    if (idMatch) selector = `#${idMatch[1]}`;
+    else if (classMatch) selector = `button.${classMatch[1].trim().split(/\s+/)[0]}`;
+
+    const isHidden =
+      /style=["'][^"']*display:\s*none/i.test(foundButtonTag) ||
+      /style=["'][^"']*visibility:\s*hidden/i.test(foundButtonTag) ||
+      /\bhidden\b/i.test(foundButtonTag) ||
+      /class=["'][^"']*(hidden|collapse|collapsed|d-none|invisible)[^"']*["']/i.test(foundButtonTag);
+
+    const textMatch = foundButtonTag.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+    result.coupon_button = {
+      exists: true,
+      is_hidden: isHidden,
+      exact_css_selector: selector,
+      button_type: textMatch || 'button',
+    };
+  }
+
+  // Detect collapsed trigger
+  const triggerCandidates = [
+    ...(cleaned.match(/<button[^>]*>[\s\S]*?<\/button>/gi) || []),
+    ...(cleaned.match(/<a[^>]*>[\s\S]*?<\/a>/gi) || []),
+    ...(cleaned.match(/<summary[^>]*>[\s\S]*?<\/summary>/gi) || []),
+  ];
+
+  for (const tag of triggerCandidates) {
+    if (
+      /(adicionar|add|have|promo code|coupon|cupom|discount|code promo|bon d'achat|ajouter)/i.test(tag) &&
+      !/(apply|validar|aplicar|appliquer|redeem|usar|ok)/i.test(tag)
+    ) {
+      const idMatch = tag.match(/id=["']([^"']+)["']/i);
+      const classMatch = tag.match(/class=["']([^"']+)["']/i);
+      let selector = '';
+
+      if (idMatch) selector = `#${idMatch[1]}`;
+      else if (classMatch) {
+        const firstClass = classMatch[1].trim().split(/\s+/)[0];
+        const tagType = tag.startsWith('<a') ? 'a' : tag.startsWith('<summary') ? 'summary' : 'button';
+        selector = `${tagType}.${firstClass}`;
+      }
+
+      const text = tag.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const required = result.coupon_input.is_hidden || result.coupon_button.is_hidden || /aria-expanded=["']false["']/i.test(tag) || /data-toggle=["']collapse["']/i.test(tag);
+
+      result.show_form_trigger = {
+        exists: true,
+        required_to_click: required,
+        exact_css_selector: selector,
+        inner_text: text,
+      };
+      break;
+    }
+  }
+
+  // Detect total
+  const totalRegexes = [
+    /(?:total\s*a\s*pagar|grand\s*total|montant\s*total|payment-due|total\s*final|total)[^<0-9$€£¥R]{0,40}((?:R\$|[$€£¥]|USD|EUR|BRL)\s*[\d.,]+)/i,
+    /((?:R\$|[$€£¥])\s*[\d.,]+)/i,
+  ];
+
+  let totalMatch: RegExpMatchArray | null = null;
+  for (const regex of totalRegexes) {
+    totalMatch = cleaned.match(regex);
+    if (totalMatch) break;
+  }
+
+  if (totalMatch) {
+    const raw = totalMatch[1].trim();
+    const currencyMatch = raw.match(/R\$|[$€£¥]|USD|EUR|BRL/i);
+    const currency = currencyMatch?.[0] || '';
+    const numericText = raw.replace(/[^0-9.,]/g, '');
+
+    let numericValue = 0;
+    if (numericText.includes(',') && numericText.includes('.')) {
+      numericValue =
+        numericText.lastIndexOf(',') > numericText.lastIndexOf('.')
+          ? parseFloat(numericText.replace(/\./g, '').replace(',', '.')) || 0
+          : parseFloat(numericText.replace(/,/g, '')) || 0;
+    } else if (numericText.includes(',')) {
+      numericValue = parseFloat(numericText.replace(',', '.')) || 0;
+    } else {
+      numericValue = parseFloat(numericText) || 0;
+    }
+
+    let selector = '';
+    const idMatch = cleaned.match(/id=["']([^"']*(?:total|payment-due)[^"']*)["']/i);
+    const classMatch = cleaned.match(/class=["']([^"']*(?:total|payment-due|grand-total)[^"']*)["']/i);
+    if (idMatch) selector = `#${idMatch[1]}`;
+    else if (classMatch) selector = `.${classMatch[1].trim().split(/\s+/)[0]}`;
+
+    result.total_order = {
+      exists: true,
+      exact_css_selector: selector,
+      raw_text: raw,
+      numeric_value: numericValue,
+      currency,
+    };
+  }
+
+  return result;
+}
+
 async function createServer() {
   const app = express();
   app.use(express.json({ limit: '25mb' }));
@@ -1581,6 +1781,117 @@ Respond strictly in valid JSON matching this exact structure:
     });
 
     return res.json(fallbackResult);
+  });
+
+  // External Checkout DOM Detection Endpoint (Chrome Extension / externally_connectable)
+  app.post('/api/detection/external-checkout', async (req: Request, res: Response) => {
+    const { url, html } = req.body as ExternalCheckoutPayload;
+
+    if (!html || typeof html !== 'string') {
+      return res.status(400).json({
+        error: 'Payload invalide. html requis.',
+      });
+    }
+
+    const cleanedHtml = cleanCheckoutHtml(html);
+
+    if (canAttemptGemini()) {
+      try {
+        const promptText = `Analyse STRICTEMENT le code HTML fourni d'un panier/checkout et détecte les 4 éléments suivants en utilisant uniquement les balises, attributs (id, name, class, data-*) et textes réellement présents dans le code. N'invente aucun sélecteur.
+
+1. show_form_trigger : Bouton ou lien pour afficher le champ coupon s'il est masqué au départ (ex: "Adicionar cupom", "Have a promo code?"). Mets required_to_click à true si le formulaire est masqué par défaut.
+2. coupon_input : Balise <input> de saisie du code promo (placeholder, sélecteur CSS exact, is_hidden).
+3. coupon_button : Bouton ou icône cliquable associé immédiatement au champ de coupon pour valider.
+4. total_order : Sélecteur du montant total final de la commande, devise et montant extrait.
+
+URL cible: ${url || ''}
+
+HTML à analyser:
+${cleanedHtml}
+
+Réponds strictement en JSON valide avec cette structure exacte :
+{
+  "show_form_trigger": {
+    "exists": true,
+    "required_to_click": false,
+    "exact_css_selector": "",
+    "inner_text": ""
+  },
+  "coupon_input": {
+    "exists": true,
+    "is_hidden": false,
+    "exact_css_selector": "",
+    "placeholder": ""
+  },
+  "coupon_button": {
+    "exists": true,
+    "is_hidden": false,
+    "exact_css_selector": "",
+    "button_type": ""
+  },
+  "total_order": {
+    "exists": true,
+    "exact_css_selector": "",
+    "raw_text": "",
+    "numeric_value": 0,
+    "currency": ""
+  }
+}`;
+        const callPromise = ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: promptText,
+          config: {
+            temperature: 0,
+            responseMimeType: 'application/json',
+          },
+        });
+
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 5000)
+        );
+
+        const geminiRes: any = await Promise.race([callPromise, timeoutPromise]);
+        const rawText = geminiRes?.text;
+
+        if (rawText) {
+          const parsed = JSON.parse(rawText) as CheckoutDetectionStructuredResult;
+
+          pushNotification({
+            type: 'qc_alert',
+            title: 'External Checkout DOM Analyzed',
+            message: `Checkout reçu depuis extension : ${url || 'unknown url'}`,
+            severity:
+              parsed.coupon_input?.exists && parsed.total_order?.exists ? 'success' : 'warning',
+          });
+
+          return res.json({
+            success: true,
+            url: url || '',
+            analyzedAt: new Date().toISOString(),
+            result: parsed,
+          });
+        }
+      } catch (err) {
+        tripGeminiCircuit();
+      }
+    }
+
+    const fallback = parseCheckoutStructuredFallback(cleanedHtml);
+
+    pushNotification({
+      type: 'qc_alert',
+      title: 'External Checkout DOM Parsed (Fallback)',
+      message: `Analyse fallback exécutée pour ${url || 'unknown url'}`,
+      severity: fallback.coupon_input.exists && fallback.total_order.exists ? 'success' : 'warning',
+    });
+
+    return res.json({
+      success: true,
+      url: url || '',
+      analyzedAt: new Date().toISOString(),
+      result: fallback,
+      fallback: true,
+    });
   });
 
   // Simulation endpoint for testing real-time updates and notification system
