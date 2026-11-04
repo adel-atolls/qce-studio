@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/dashboard/AppShell';
@@ -18,6 +19,7 @@ declare global {
 }
 
 export default function DetectionPage() {
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,20 +30,34 @@ export default function DetectionPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     try {
-      const raw = localStorage.getItem('qce-detection-history');
+      const raw = window.localStorage.getItem('qce-detection-history');
       if (raw) {
         setHistory(JSON.parse(raw));
       }
     } catch {
       // ignore
     }
-  }, []);
+  }, [mounted]);
 
   const saveHistory = useCallback((item: CheckoutDetectionHistoryItem) => {
     setHistory((prev) => {
       const next = [item, ...prev.filter((h) => h.url !== item.url)].slice(0, 12);
-      localStorage.setItem('qce-detection-history', JSON.stringify(next));
+
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem('qce-detection-history', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+
       return next;
     });
   }, []);
@@ -52,7 +68,7 @@ export default function DetectionPage() {
   }, [result]);
 
   const handleCopy = async () => {
-    if (!selectorsJson) return;
+    if (!selectorsJson || typeof navigator === 'undefined') return;
     await navigator.clipboard.writeText(selectorsJson);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
@@ -84,14 +100,16 @@ export default function DetectionPage() {
         analyzedAt: data.analyzedAt || new Date().toISOString(),
         result: data.result,
       });
-    } catch (err: any) {
-      setError(err?.message || 'External DOM analysis failed.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'External DOM analysis failed.');
     } finally {
       setLoading(false);
     }
   }, [saveHistory]);
 
   useEffect(() => {
+    if (!mounted) return;
+
     const handleWindowMessage = (event: MessageEvent) => {
       const data = event.data as ExternalCheckoutPayload;
       if (!data || data.type !== 'INSPECT_CHECKOUT_HTML') return;
@@ -104,7 +122,17 @@ export default function DetectionPage() {
     return () => {
       window.removeEventListener('message', handleWindowMessage);
     };
-  }, [analyzePayload]);
+  }, [mounted, analyzePayload]);
+
+  if (!mounted) {
+    return (
+      <AppShell>
+        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-slate-400">
+          Loading detection workspace...
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>

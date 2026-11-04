@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { AppShell } from '@/components/dashboard/AppShell';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Activity, ScanSearch, ShieldCheck, Sparkles } from 'lucide-react';
@@ -62,51 +64,6 @@ export default function HomePage() {
             hint="Base propre pour les modules admin"
             icon={<Sparkles className="h-5 w-5" />}
           />
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[1.4fr_0.9fr]">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-            <div className="text-lg font-semibold text-white">Quick Actions</div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <Link
-                href="/detection"
-                className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-5 transition hover:bg-cyan-500/10"
-              >
-                <div className="text-sm font-semibold text-white">Detection Inbox</div>
-                <div className="mt-1 text-sm text-slate-400">
-                  Réception des checkouts depuis l’extension et extraction structurée.
-                </div>
-              </Link>
-
-              <Link
-                href="/regex"
-                className="rounded-2xl border border-white/10 bg-black/10 p-5 transition hover:bg-white/5"
-              >
-                <div className="text-sm font-semibold text-white">Regex Studio</div>
-                <div className="mt-1 text-sm text-slate-400">
-                  Prépare la future génération et validation de patterns QA.
-                </div>
-              </Link>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-            <div className="text-lg font-semibold text-white">System Status</div>
-            <div className="mt-4 space-y-3 text-sm text-slate-400">
-              <div className="flex items-center justify-between rounded-2xl bg-black/10 px-4 py-3">
-                <span>Chrome Extension Bridge</span>
-                <span className="text-emerald-300">Ready</span>
-              </div>
-              <div className="flex items-center justify-between rounded-2xl bg-black/10 px-4 py-3">
-                <span>Detection Route</span>
-                <span className="text-cyan-300">/api/detection/external-checkout</span>
-              </div>
-              <div className="flex items-center justify-between rounded-2xl bg-black/10 px-4 py-3">
-                <span>Deployment Mode</span>
-                <span className="text-slate-200">Next.js Admin V2</span>
-              </div>
-            </div>
-          </div>
         </section>
       </div>
     </AppShell>

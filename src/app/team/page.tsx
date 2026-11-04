@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { AppShell } from '@/components/dashboard/AppShell';
 
 export default function TeamPage() {
