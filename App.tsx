@@ -13,16 +13,40 @@ import { QCTask, TeamMember, QCNotification } from './types';
 import { playChime } from './utils/audio';
 import { X, Code2, ListTodo, Users2, ScanSearch } from 'lucide-react';
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('regex');
+async function safeFetchJson<T>(url: string, fallback: T): Promise<T> {
+  try {
+    const res = await fetch(url);
 
-  // Application Data States
+    if (!res.ok) return fallback;
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) return fallback;
+
+    return await res.json();
+  } catch {
+    return fallback;
+  }
+}
+
+function getInitialTabFromUrl(): ActiveTab {
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get('tab');
+
+  if (tab === 'regex' || tab === 'inprogress' || tab === 'team' || tab === 'detection') {
+    return tab;
+  }
+
+  return 'regex';
+}
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<ActiveTab>(getInitialTabFromUrl());
+
   const [tasks, setTasks] = useState<QCTask[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [notifications, setNotifications] = useState<QCNotification[]>([]);
   const [toasts, setToasts] = useState<QCNotification[]>([]);
 
-  // UI States
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -31,10 +55,24 @@ export default function App() {
   const [regexInitialUrl, setRegexInitialUrl] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Global Session Timer State (Shared across Sidebar & Workbench)
   const [activeTimerTaskId, setActiveTimerTaskId] = useState<string | null>('task-101');
-  const [timerSeconds, setTimerSeconds] = useState(1440); // 24 min initial
+  const [timerSeconds, setTimerSeconds] = useState(1440);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+
+    if (tab === 'regex' || tab === 'inprogress' || tab === 'team' || tab === 'detection') {
+      setActiveTab(tab);
+    }
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', activeTab);
+    window.history.replaceState({}, '', url.toString());
+  }, [activeTab]);
 
   useEffect(() => {
     let interval: any = null;
@@ -46,7 +84,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isTimerRunning]);
 
-  // Handle Theme Switch
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
@@ -58,32 +95,21 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Default to dark theme for developer workbench aesthetic
     document.documentElement.classList.add('dark');
   }, []);
 
-  // Fetch initial data
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [tasksRes, teamRes, notifsRes] = await Promise.all([
-          fetch('/api/tasks'),
-          fetch('/api/team'),
-          fetch('/api/notifications'),
+        const [tasksData, teamData, notifsData] = await Promise.all([
+          safeFetchJson<QCTask[]>('/api/tasks', []),
+          safeFetchJson<TeamMember[]>('/api/team', []),
+          safeFetchJson<QCNotification[]>('/api/notifications', []),
         ]);
 
-        if (tasksRes.ok) {
-          const tasksData = await tasksRes.json();
-          setTasks(tasksData);
-        }
-        if (teamRes.ok) {
-          const teamData = await teamRes.json();
-          setTeamMembers(teamData);
-        }
-        if (notifsRes.ok) {
-          const notifsData = await notifsRes.json();
-          setNotifications(notifsData);
-        }
+        setTasks(tasksData);
+        setTeamMembers(teamData);
+        setNotifications(notifsData);
       } catch (err) {
         console.error('Error fetching initial app data:', err);
       } finally {
@@ -94,12 +120,25 @@ export default function App() {
     loadInitialData();
   }, []);
 
-  // Real-time Server-Sent Events (SSE) listener
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimeout: any = null;
+    let isClosed = false;
 
-    function connectSSE() {
+    async function canUseSSE() {
+      try {
+        const res = await fetch('/api/notifications');
+        const contentType = res.headers.get('content-type') || '';
+        return res.ok && contentType.includes('application/json');
+      } catch {
+        return false;
+      }
+    }
+
+    async function connectSSE() {
+      const enabled = await canUseSSE();
+      if (!enabled || isClosed) return;
+
       eventSource = new EventSource('/api/notifications/stream');
 
       eventSource.addEventListener('notification', (e) => {
@@ -162,19 +201,21 @@ export default function App() {
 
       eventSource.onerror = () => {
         eventSource?.close();
-        reconnectTimeout = setTimeout(connectSSE, 5000);
+        if (!isClosed) {
+          reconnectTimeout = setTimeout(connectSSE, 5000);
+        }
       };
     }
 
     connectSSE();
 
     return () => {
+      isClosed = true;
       eventSource?.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
   }, [soundEnabled]);
 
-  // Task Handlers
   const handleCreateTask = async (taskData: Partial<QCTask>) => {
     try {
       const res = await fetch('/api/tasks', {
@@ -182,9 +223,29 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(taskData),
       });
-      if (res.ok) {
+
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
         const created = await res.json();
         setTasks((prev) => [created, ...prev.filter((t) => t.id !== created.id)]);
+      } else {
+        const localTask: QCTask = {
+          id: `local-${Date.now()}`,
+          title: taskData.title || 'New QC Task',
+          targetUrl: taskData.targetUrl || 'https://example.com',
+          assignedTo: taskData.assignedTo || teamMembers[0]?.id || 'mem-1',
+          status: taskData.status || 'in_progress',
+          priority: taskData.priority || 'medium',
+          category: taskData.category || 'Regex QC',
+          progress: taskData.progress || 0,
+          timeSpentMinutes: taskData.timeSpentMinutes || 0,
+          checklist: taskData.checklist || [],
+          notes: taskData.notes || '',
+          bugsFound: taskData.bugsFound || 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        setTasks((prev) => [localTask, ...prev]);
       }
     } catch (err) {
       console.error('Failed to create task:', err);
@@ -213,7 +274,6 @@ export default function App() {
     }
   };
 
-  // Team Handlers
   const handleAddMember = async (memberData: Partial<TeamMember>) => {
     try {
       const res = await fetch('/api/team', {
@@ -221,7 +281,9 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(memberData),
       });
-      if (res.ok) {
+
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
         const newMember = await res.json();
         setTeamMembers((prev) => [newMember, ...prev]);
       }
@@ -243,7 +305,6 @@ export default function App() {
     }
   };
 
-  // Notification Handlers
   const handleMarkAllNotificationsAsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     try {
@@ -270,7 +331,6 @@ export default function App() {
     }
   };
 
-  // Cross-Navigation Handlers
   const handleSendToRegexStudio = (url: string) => {
     setRegexInitialUrl(url);
     setActiveTab('regex');
@@ -287,7 +347,6 @@ export default function App() {
 
   return (
     <div className={`min-h-screen flex ${theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
-      {/* Floating Real-time Toast Notifications */}
       <ToastContainer
         toasts={toasts}
         onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
@@ -296,7 +355,6 @@ export default function App() {
         }}
       />
 
-      {/* Command Palette (⌘K) */}
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
@@ -308,7 +366,6 @@ export default function App() {
         onOpenRegexWithUrl={handleSendToRegexStudio}
       />
 
-      {/* Modern Dashboard Sidebar (Desktop) */}
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -323,7 +380,6 @@ export default function App() {
         onToggleSound={() => setSoundEnabled(!soundEnabled)}
       />
 
-      {/* Mobile Drawer Navigation */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 flex lg:hidden">
           <div className="w-64 bg-slate-900 h-full p-4 flex flex-col justify-between border-r border-slate-800">
@@ -407,9 +463,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Dashboard Canvas */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        {/* Modern Top Application Bar */}
         <TopBar
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -425,7 +479,6 @@ export default function App() {
           inProgressCount={inProgressTasksCount}
         />
 
-        {/* Slide-out Notification Drawer */}
         <NotificationDrawer
           isOpen={isNotificationDrawerOpen}
           onClose={() => setIsNotificationDrawerOpen(false)}
@@ -440,7 +493,6 @@ export default function App() {
           }}
         />
 
-        {/* Dynamic Workspace Content */}
         <main className="flex-1 overflow-x-hidden">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-24 space-y-3">
