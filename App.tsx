@@ -28,19 +28,34 @@ async function safeFetchJson<T>(url: string, fallback: T): Promise<T> {
   }
 }
 
-function getInitialTabFromUrl(): ActiveTab {
-  const params = new URLSearchParams(window.location.search);
-  const tab = params.get('tab');
+function normalizeTab(tab: string | null | undefined): ActiveTab {
+  if (tab === 'regex') return 'regex';
+  if (tab === 'inprogress') return 'inprogress';
+  if (tab === 'team') return 'team';
+  if (tab === 'detection') return 'detection';
+  return 'regex';
+}
 
-  if (tab === 'regex' || tab === 'inprogress' || tab === 'team' || tab === 'detection') {
-    return tab;
-  }
+function readTabFromLocation(): ActiveTab {
+  const params = new URLSearchParams(window.location.search);
+  const queryTab = params.get('tab');
+  if (queryTab) return normalizeTab(queryTab);
+
+  const hash = window.location.hash.replace('#', '');
+  if (hash) return normalizeTab(hash);
 
   return 'regex';
 }
 
+function writeTabToLocation(tab: ActiveTab) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', tab);
+  url.hash = tab;
+  window.history.replaceState({}, '', url.toString());
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>(getInitialTabFromUrl());
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => readTabFromLocation());
 
   const [tasks, setTasks] = useState<QCTask[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -60,18 +75,23 @@ export default function App() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab');
+    const syncTabFromUrl = () => {
+      const nextTab = readTabFromLocation();
+      setActiveTab(nextTab);
+    };
 
-    if (tab === 'regex' || tab === 'inprogress' || tab === 'team' || tab === 'detection') {
-      setActiveTab(tab);
-    }
+    syncTabFromUrl();
+    window.addEventListener('popstate', syncTabFromUrl);
+    window.addEventListener('hashchange', syncTabFromUrl);
+
+    return () => {
+      window.removeEventListener('popstate', syncTabFromUrl);
+      window.removeEventListener('hashchange', syncTabFromUrl);
+    };
   }, []);
 
   useEffect(() => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('tab', activeTab);
-    window.history.replaceState({}, '', url.toString());
+    writeTabToLocation(activeTab);
   }, [activeTab]);
 
   useEffect(() => {
