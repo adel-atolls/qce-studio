@@ -38,6 +38,7 @@ export function extractInstantFunnelRegex(urlStr: string) {
     } catch {
       parsed = new URL('https://' + urlStr);
     }
+
     const rawHost = parsed.hostname || '';
     const cleanHost = rawHost.replace(/^www\./i, '');
     const pathname = parsed.pathname || '';
@@ -57,6 +58,7 @@ export function extractInstantFunnelRegex(urlStr: string) {
       'purchase',
       'finalize',
     ];
+
     let foundKw = keywords.find((kw) => fullLower.includes(kw));
 
     if (!foundKw) {
@@ -80,7 +82,10 @@ export function extractInstantFunnelRegex(urlStr: string) {
   }
 }
 
-function localRegexFallback(urlStr: string, flavor: 'javascript' | 'python' | 'pcre' = 'javascript'): RegexResult {
+function localRegexFallback(
+  urlStr: string,
+  options: RegexOptions
+): RegexResult {
   let parsed: URL;
   try {
     parsed = new URL(urlStr);
@@ -88,41 +93,60 @@ function localRegexFallback(urlStr: string, flavor: 'javascript' | 'python' | 'p
     parsed = new URL('https://' + urlStr);
   }
 
-  const host = parsed.hostname.replace(/\./g, '\\.');
-  const pattern = `^https?:\\/\\/${host}.*$`;
+  const host = parsed.hostname;
+  const escapedHost = host.replace(/\./g, '\\.');
+  const pattern = `^https?:\\/\\/${escapedHost}.*$`;
 
   return {
     pattern,
     flags: 'i',
-    flavor,
-    explanation: 'Local fallback regex generated on the client because the backend API is unavailable.',
+    flavor: options.flavor,
+    explanation:
+      'Local fallback regex generated in the browser because the backend /api/regex/generate endpoint is unavailable on this deployment.',
     tokens: [
       {
         name: 'domain',
-        pattern: host,
-        description: 'Escaped domain matcher',
-        example: parsed.hostname,
+        pattern: escapedHost,
+        description: 'Escaped hostname matcher',
+        example: host,
       },
     ],
     testCases: [
-      { url: urlStr, shouldMatch: true, label: 'Original URL' },
-      { url: `https://${parsed.hostname}/test`, shouldMatch: true, label: 'Same domain' },
-      { url: 'https://example.com/', shouldMatch: false, label: 'Other domain' },
+      {
+        url: urlStr,
+        shouldMatch: true,
+        label: 'Original Target URL',
+      },
+      {
+        url: `${parsed.protocol}//${parsed.hostname}/test`,
+        shouldMatch: true,
+        label: 'Same domain test',
+      },
+      {
+        url: 'https://example.com/other',
+        shouldMatch: false,
+        label: 'Different domain',
+      },
     ],
     codeSnippets: {
-      javascript: `const regex = /^https?:\\/\\/${host}.*$/i;`,
-      python: `import re\nregex = re.compile(r"^https?:\\/\\/${host}.*$", re.I)`,
-      typescript: `const regex: RegExp = /^https?:\\/\\/${host}.*$/i;`,
+      javascript: `const regex = /^https?:\\/\\/${escapedHost}.*$/i;`,
+      python: `import re\nregex = re.compile(r"^https?:\\/\\/${escapedHost}.*$", re.I)`,
+      typescript: `const regex: RegExp = /^https?:\\/\\/${escapedHost}.*$/i;`,
     },
     antiPatterns: [
-      'Do not overuse .* in the middle of patterns if you need strict route validation.',
+      'Avoid using this fallback pattern as a strict production route validator without refining the path logic.',
     ],
     suggestedEdgeCases: [
-      'Test http vs https',
-      'Test trailing slash variations',
-      'Test query string variations',
-      'Test subdomain variants if applicable',
+      'HTTP vs HTTPS',
+      'Trailing slash variations',
+      'Query parameter variations',
+      'Case sensitivity in path segments',
     ],
+    funnelPattern: extractInstantFunnelRegex(urlStr)?.dotPattern,
+    cleanFunnelPattern: extractInstantFunnelRegex(urlStr)?.escapedPattern,
+    universalFunnelPattern: extractInstantFunnelRegex(urlStr)?.universalPattern,
+    extractedDomain: extractInstantFunnelRegex(urlStr)?.domain,
+    extractedKeyword: extractInstantFunnelRegex(urlStr)?.keyword,
   };
 }
 
@@ -141,6 +165,11 @@ const PRESET_LINKS = [
     title: 'E-commerce SKU Slug',
     category: 'Product Link',
     url: 'https://shop.example.com/en-us/p/wireless-noise-cancelling-headphones-p-89412?color=matte-black&sku=SKU-99201',
+  },
+  {
+    title: 'OAuth2 Callback',
+    category: 'Authentication',
+    url: 'https://auth.company.io/oauth/callback?code=def_981a2f&state=sec_nonce_8831&redirect_uri=https%3A%2F%2Fapp.company.io%2Fdashboard',
   },
 ];
 
@@ -185,6 +214,7 @@ export const RegexStudio: React.FC<RegexStudioProps> = ({
       handleGenerateRegex();
     }, 400);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetUrl, options]);
 
   useEffect(() => {
@@ -220,25 +250,36 @@ export const RegexStudio: React.FC<RegexStudioProps> = ({
     setError(null);
 
     try {
-      const res = await fetch('/api/regex/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: targetUrl.trim(), sampleUrls, options }),
-      });
+      let data: RegexResult | null = null;
 
-      const contentType = res.headers.get('content-type') || '';
-      let data: RegexResult;
+      try {
+        const res = await fetch('/api/regex/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: targetUrl.trim(),
+            sampleUrls: sampleUrls.filter(Boolean),
+            options,
+          }),
+        });
 
-      if (!res.ok || !contentType.includes('application/json')) {
-        data = localRegexFallback(targetUrl.trim(), options.flavor);
-      } else {
-        data = await res.json();
+        const contentType = res.headers.get('content-type') || '';
+
+        if (res.ok && contentType.includes('application/json')) {
+          data = await res.json();
+        }
+      } catch {
+        // ignore, fallback below
+      }
+
+      if (!data) {
+        data = localRegexFallback(targetUrl.trim(), options);
       }
 
       setResult(data);
 
       const initialTests: RegexTestCase[] = (data.testCases || []).map((tc) => {
-        const tested = testRegexOnInput(data.pattern, data.flags || 'i', tc.url);
+        const tested = testRegexOnInput(data!.pattern, data!.flags || 'i', tc.url);
         return {
           ...tc,
           matched: tested.matched,
@@ -248,6 +289,7 @@ export const RegexStudio: React.FC<RegexStudioProps> = ({
       });
 
       setTestCasesList(initialTests);
+
       setHistory((prev) => [
         {
           url: targetUrl,
@@ -256,21 +298,8 @@ export const RegexStudio: React.FC<RegexStudioProps> = ({
         },
         ...prev.slice(0, 9),
       ]);
-    } catch {
-      const data = localRegexFallback(targetUrl.trim(), options.flavor);
-      setResult(data);
-
-      const initialTests: RegexTestCase[] = (data.testCases || []).map((tc) => {
-        const tested = testRegexOnInput(data.pattern, data.flags || 'i', tc.url);
-        return {
-          ...tc,
-          matched: tested.matched,
-          groups: tested.groups,
-          executionMs: tested.duration,
-        };
-      });
-
-      setTestCasesList(initialTests);
+    } catch (err: any) {
+      setError(err?.message || 'Something went wrong while synthesizing regex pattern.');
     } finally {
       setLoading(false);
     }
@@ -353,7 +382,9 @@ export const RegexStudio: React.FC<RegexStudioProps> = ({
                   : 'bg-slate-950/70 border-slate-800/90 text-slate-400 hover:bg-slate-900 hover:text-slate-200'
               }`}
             >
-              <div className="text-[10px] text-slate-500 font-medium">{preset.category}</div>
+              <div className="text-[10px] text-slate-500 font-medium">
+                {preset.category}
+              </div>
               <div className="text-xs font-semibold text-slate-200 mt-0.5 truncate group-hover:text-white">
                 {preset.title}
               </div>
@@ -381,6 +412,7 @@ export const RegexStudio: React.FC<RegexStudioProps> = ({
                   type="button"
                   onClick={handlePasteClipboard}
                   className="px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs flex items-center gap-1 transition"
+                  title="Paste from clipboard"
                 >
                   <ClipboardPaste className="w-3 h-3" />
                   Paste
@@ -407,6 +439,83 @@ export const RegexStudio: React.FC<RegexStudioProps> = ({
             </button>
           </div>
         </div>
+
+        <div className="pt-2 border-t border-slate-800/80">
+          <button
+            onClick={() => setShowAdvancedSamples(!showAdvancedSamples)}
+            className="text-xs text-slate-400 hover:text-indigo-400 font-medium flex items-center gap-1.5 transition"
+          >
+            <span>{showAdvancedSamples ? '▲ Hide' : '▼ Add'} Additional Sample URLs</span>
+            <span className="text-[11px] text-slate-500">(To infer dynamic IDs, slug variations, and locale prefixes)</span>
+          </button>
+
+          {showAdvancedSamples && (
+            <div className="mt-3 space-y-2 animate-in fade-in duration-150">
+              {sampleUrls.map((sUrl, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={sUrl}
+                    onChange={(e) => {
+                      const updated = [...sampleUrls];
+                      updated[idx] = e.target.value;
+                      setSampleUrls(updated);
+                    }}
+                    placeholder={`Sample URL #${idx + 2}`}
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    onClick={() => setSampleUrls(sampleUrls.filter((_, i) => i !== idx))}
+                    className="p-1.5 text-slate-500 hover:text-rose-400 transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => setSampleUrls([...sampleUrls, ''])}
+                className="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1 pt-1"
+              >
+                <Plus className="w-3 h-3" /> Add another sample link
+              </button>
+            </div>
+          )}
+        </div>
+
+        {showConfig && (
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-200">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                Regex Flavor
+              </label>
+              <select
+                value={options.flavor}
+                onChange={(e) => setOptions({ ...options, flavor: e.target.value as any })}
+                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="javascript">JavaScript (RegExp)</option>
+                <option value="python">Python (re module)</option>
+                <option value="pcre">PCRE</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                Match Scope
+              </label>
+              <select
+                value={options.matchScope}
+                onChange={(e) => setOptions({ ...options, matchScope: e.target.value as any })}
+                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="full">Full URL</option>
+                <option value="path">Path Only</option>
+                <option value="domain_path">Domain + Path</option>
+                <option value="query">Query Only</option>
+              </select>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
@@ -539,7 +648,9 @@ export const RegexStudio: React.FC<RegexStudioProps> = ({
                       className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 hover:border-slate-700 transition"
                     >
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-indigo-400 font-mono">{tok.name}</span>
+                        <span className="font-semibold text-indigo-400 font-mono">
+                          {tok.name}
+                        </span>
                         <span className="text-[10px] text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
                           {tok.example}
                         </span>
@@ -625,7 +736,9 @@ export const RegexStudio: React.FC<RegexStudioProps> = ({
 
                     <div className="flex items-center gap-3 text-xs text-slate-400 shrink-0">
                       {tc.executionMs !== undefined && (
-                        <span className="text-[11px] text-slate-500">⏱ {tc.executionMs} ms</span>
+                        <span className="text-[11px] text-slate-500">
+                          ⏱ {tc.executionMs} ms
+                        </span>
                       )}
                       <button
                         onClick={() => setTestCasesList(testCasesList.filter((_, i) => i !== idx))}
@@ -638,6 +751,10 @@ export const RegexStudio: React.FC<RegexStudioProps> = ({
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/20 text-xs text-amber-200">
+            Backend regex API indisponible sur ce déploiement Netlify. Le studio utilise un fallback local côté navigateur.
           </div>
 
           {history.length > 0 && (
@@ -663,10 +780,6 @@ export const RegexStudio: React.FC<RegexStudioProps> = ({
               </div>
             </div>
           )}
-
-          <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/20 text-xs text-amber-200">
-            Backend regex API indisponible sur ce déploiement Netlify. Le studio utilise un fallback local côté navigateur.
-          </div>
         </div>
       )}
     </div>
