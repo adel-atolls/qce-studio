@@ -1,4 +1,4 @@
-import { RegexOptions, RegexResult } from '@/types';
+import { RegexOptions, RegexResult } from '@/types/index';
 
 export function extractInstantFunnelRegex(urlStr: string) {
   try {
@@ -185,7 +185,6 @@ export function generateLocalRegexFromUrl(
   }
 
   const finalPattern = strict ? `^${patternBody}$` : patternBody;
-
   const funnel = extractInstantFunnelRegex(urlStr);
 
   return {

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/dashboard/AppShell';
 import { generateLocalRegexFromUrl, extractInstantFunnelRegex, testRegexOnInput } from '@/lib/regex';
-import { RegexOptions, RegexResult, RegexTestCase } from '@/types';
+import { RegexOptions, RegexResult, RegexTestCase } from '@/types/index';
 import {
   Sparkles,
   Copy,
@@ -170,7 +170,7 @@ export default function RegexPage() {
         </section>
 
         <section className="space-y-3">
-          <div className="text-[11px] font-medium text-slate-400 flex items-center justify-between">
+          <div className="flex items-center justify-between text-[11px] font-medium text-slate-400">
             <span>Preset URL Library</span>
             <span className="text-slate-500">Select a common test case</span>
           </div>
@@ -284,7 +284,7 @@ export default function RegexPage() {
                   </label>
                   <select
                     value={options.flavor}
-                    onChange={(e) => setOptions({ ...options, flavor: e.target.value as any })}
+                    onChange={(e) => setOptions({ ...options, flavor: e.target.value as RegexOptions['flavor'] })}
                     className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
                   >
                     <option value="javascript">JavaScript</option>
@@ -299,7 +299,7 @@ export default function RegexPage() {
                   </label>
                   <select
                     value={options.matchScope}
-                    onChange={(e) => setOptions({ ...options, matchScope: e.target.value as any })}
+                    onChange={(e) => setOptions({ ...options, matchScope: e.target.value as RegexOptions['matchScope'] })}
                     className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
                   >
                     <option value="full">Full URL</option>
