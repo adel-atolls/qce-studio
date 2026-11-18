@@ -1,5 +1,4 @@
 'use client';
-export const dynamic = 'force-dynamic';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/dashboard/AppShell';
@@ -19,6 +18,7 @@ declare global {
 }
 
 export default function DetectionPage() {
+  const [mode, setMode] = useState<'gemini' | 'fallback' | ''>('');
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,12 +50,12 @@ export default function DetectionPage() {
     setHistory((prev) => {
       const next = [item, ...prev.filter((h) => h.url !== item.url)].slice(0, 12);
 
-      if (typeof window !== 'undefined') {
-        try {
+      try {
+        if (typeof window !== 'undefined') {
           window.localStorage.setItem('qce-detection-history', JSON.stringify(next));
-        } catch {
-          // ignore
         }
+      } catch {
+        // ignore
       }
 
       return next;
@@ -68,7 +68,9 @@ export default function DetectionPage() {
   }, [result]);
 
   const handleCopy = async () => {
-    if (!selectorsJson || typeof navigator === 'undefined') return;
+    if (!selectorsJson) return;
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return;
+
     await navigator.clipboard.writeText(selectorsJson);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
@@ -76,6 +78,7 @@ export default function DetectionPage() {
 
   const analyzePayload = useCallback(async (payload: ExternalCheckoutPayload) => {
     try {
+      setMode(data.mode || '');
       setError(null);
       setLoading(true);
       setCurrentUrl(payload.url || '');
@@ -127,7 +130,7 @@ export default function DetectionPage() {
   if (!mounted) {
     return (
       <AppShell>
-        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-slate-400">
+        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-sm text-slate-400">
           Loading detection workspace...
         </div>
       </AppShell>
