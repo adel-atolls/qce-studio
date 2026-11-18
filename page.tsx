@@ -45,6 +45,12 @@ const PRESET_LINKS = [
   },
 ];
 
+type HistoryItem = {
+  url: string;
+  pattern: string;
+  timestamp: string;
+};
+
 export default function RegexPage() {
   const [targetUrl, setTargetUrl] = useState(PRESET_LINKS[0].url);
   const [sampleUrls, setSampleUrls] = useState<string[]>([]);
@@ -66,7 +72,7 @@ export default function RegexPage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [customTestInput, setCustomTestInput] = useState('');
   const [testCasesList, setTestCasesList] = useState<RegexTestCase[]>([]);
-  const [history, setHistory] = useState<{ url: string; pattern: string; timestamp: string }[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [activeCodeTab, setActiveCodeTab] = useState<'javascript' | 'python' | 'typescript'>('javascript');
 
   const instantFunnel = useMemo(() => extractInstantFunnelRegex(targetUrl), [targetUrl]);
@@ -88,7 +94,7 @@ export default function RegexPage() {
     const generated = generateLocalRegexFromUrl(targetUrl.trim(), options);
     setResult(generated);
 
-    const initialTests: RegexTestCase[] = (generated.testCases || []).map((tc) => {
+    const initialTests: RegexTestCase[] = (generated.testCases || []).map((tc: RegexTestCase) => {
       const tested = testRegexOnInput(generated.pattern, generated.flags || 'i', tc.url);
       return {
         ...tc,
@@ -100,7 +106,7 @@ export default function RegexPage() {
 
     setTestCasesList(initialTests);
 
-    setHistory((prev) => [
+    setHistory((prev: HistoryItem[]) => [
       {
         url: targetUrl,
         pattern: generated.pattern,
@@ -237,7 +243,7 @@ export default function RegexPage() {
 
               {showAdvancedSamples && (
                 <div className="mt-4 space-y-2">
-                  {sampleUrls.map((url, index) => (
+                  {sampleUrls.map((url: string, index: number) => (
                     <div key={index} className="flex items-center gap-2">
                       <input
                         type="text"
@@ -434,7 +440,7 @@ export default function RegexPage() {
                 </div>
 
                 <div className="mt-4 space-y-3">
-                  {testCasesList.map((tc, idx) => (
+                  {testCasesList.map((tc: RegexTestCase, idx: number) => (
                     <div
                       key={idx}
                       className={`rounded-2xl border p-4 ${
@@ -506,14 +512,14 @@ export default function RegexPage() {
                   </div>
 
                   <ul className="mt-4 space-y-2 text-sm text-slate-400">
-                    {result.antiPatterns.map((item, i) => (
+                    {result.antiPatterns.map((item: string, i: number) => (
                       <li key={i}>• {item}</li>
                     ))}
                   </ul>
 
                   <div className="mt-5 text-sm font-semibold text-white">Suggested Edge Cases</div>
                   <ul className="mt-3 space-y-2 text-sm text-slate-400">
-                    {result.suggestedEdgeCases.map((item, i) => (
+                    {result.suggestedEdgeCases.map((item: string, i: number) => (
                       <li key={i}>• {item}</li>
                     ))}
                   </ul>
@@ -529,7 +535,7 @@ export default function RegexPage() {
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {history.map((item, i) => (
+                  {history.map((item: HistoryItem, i: number) => (
                     <button
                       key={i}
                       onClick={() => setTargetUrl(item.url)}
