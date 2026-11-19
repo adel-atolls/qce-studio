@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { cleanCheckoutHtml, parseCheckoutStructuredFallback } from '@/lib/gemini';
+import { ExternalCheckoutSignals } from '@/types/index';
 
 function isolateCheckoutRelevantHtml(html: string): string {
   const lowered = html.toLowerCase();
 
   const keywords = [
-    'Code','Aktion','Rabatt','Gutschein','Gutschein','Gutschein','Gesamt',
-    'Código','Promoção','Desconto','Cupom','Vale','Voucher','Total',
-    'Code','Promo','Réduction','Coupon','Bon','Voucher','Total',
-    'Code','Aktion','Rabatt','Gutschein','Gutschein','Gutschein','Gesamt',
-    'Codice','Promo','Sconto','Coupon','Buono','Voucher','Totale',
-    'Código','Promo','Descuento','Cupón','Bono','Vale','Total',
-    'Code','Actie','Korting','Kortingsbon','Waardebon','Voucher','Totaal',
-    'Kod','Promocja','Rabat','Kupon','Bon','Voucher','Razem',
-    'Código','Promo','Descuento','Cupón','Vale','Bono','Total',
-    'Kod','Kampanj','Rabatt','Kupong','Värdecheck','Presentkort','Totalt'
+    'coupon',
+    'cupom',
+    'promo',
+    'discount',
+    'voucher',
+    'checkout',
+    'cart',
+    'bag',
+    'panier',
+    'total',
+    'payment',
+    'subtotal',
+    'shipping',
+    'aplicar',
+    'validar',
+    'apply',
+    'code promo',
   ];
 
   let firstIndex = -1;
@@ -39,10 +47,65 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function applySignalsToFallback(
+  fallbackResult: any,
+  signals?: ExternalCheckoutSignals | null
+) {
+  if (!signals) return fallbackResult;
+
+  const result = { ...fallbackResult };
+
+  if (!result.coupon_input.exists && signals.couponInputs?.length > 0) {
+    const first = signals.couponInputs[0];
+    result.coupon_input = {
+      exists: true,
+      is_hidden: !!first.hidden,
+      exact_css_selector: first.selector || '',
+      placeholder: first.placeholder || '',
+    };
+  }
+
+  if (!result.coupon_button.exists && signals.couponButtons?.length > 0) {
+    const first = signals.couponButtons[0];
+    result.coupon_button = {
+      exists: true,
+      is_hidden: !!first.hidden,
+      exact_css_selector: first.selector || '',
+      button_type: first.text || '',
+    };
+  }
+
+  if (!result.show_form_trigger.exists && signals.showFormTriggers?.length > 0) {
+    const first = signals.showFormTriggers[0];
+    result.show_form_trigger = {
+      exists: true,
+      required_to_click: !!first.hidden || result.coupon_input.is_hidden || result.coupon_button.is_hidden,
+      exact_css_selector: first.selector || '',
+      inner_text: first.text || '',
+    };
+  }
+
+  if (!result.total_order.exists && signals.totalCandidates?.length > 0) {
+    const first = signals.totalCandidates.find((item) =>
+      /\$|€|£|r\$|usd|eur|brl|total/i.test(item.text)
+    ) || signals.totalCandidates[0];
+
+    result.total_order = {
+      exists: true,
+      exact_css_selector: first?.selector || '',
+      raw_text: first?.text || '',
+      numeric_value: 0,
+      currency: '',
+    };
+  }
+
+  return result;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const requestBody = await req.json();
-    const { url, html } = requestBody || {};
+    const { url, html, signals } = requestBody || {};
 
     if (!html || typeof html !== 'string') {
       return NextResponse.json(
@@ -56,7 +119,8 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-      const fallbackResult = parseCheckoutStructuredFallback(focusedHtml);
+      const baseFallback = parseCheckoutStructuredFallback(focusedHtml);
+      const fallbackResult = applySignalsToFallback(baseFallback, signals);
       return NextResponse.json({
         success: true,
         mode: 'fallback',
@@ -83,6 +147,8 @@ Analyse STRICTEMENT le HTML fourni et détecte les 4 éléments suivants en util
 
 IMPORTANT :
 - Base-toi uniquement sur les balises, attributs réels (id, class, name, data-*), et textes visibles présents dans le HTML.
+- Utilise aussi les signaux locaux fournis par l'extension comme indices prioritaires.
+- Si les signaux locaux donnent déjà un sélecteur réel présent dans le DOM, privilégie-le.
 - N'invente jamais un sélecteur si tu ne peux pas le déduire du code.
 - Si l'élément n'existe pas, mets exists: false.
 - Si plusieurs montants existent, retourne STRICTEMENT le total final de commande, pas le subtotal, pas le shipping, pas la taxe si séparée.
@@ -97,6 +163,9 @@ IMPORTANT :
 
 URL cible:
 ${url || ''}
+
+SIGNAUX LOCAUX DE L'EXTENSION:
+${JSON.stringify(signals || {}, null, 2)}
 
 HTML à analyser:
 ${focusedHtml}
@@ -170,7 +239,9 @@ Retourne exclusivement ce JSON valide :
       }
 
       if (!rawText) {
-        const fallbackResult = parseCheckoutStructuredFallback(focusedHtml);
+        const baseFallback = parseCheckoutStructuredFallback(focusedHtml);
+        const fallbackResult = applySignalsToFallback(baseFallback, signals);
+
         return NextResponse.json({
           success: true,
           mode: 'fallback',
@@ -187,7 +258,9 @@ Retourne exclusivement ce JSON valide :
       try {
         parsedResult = JSON.parse(rawText);
       } catch {
-        const fallbackResult = parseCheckoutStructuredFallback(focusedHtml);
+        const baseFallback = parseCheckoutStructuredFallback(focusedHtml);
+        const fallbackResult = applySignalsToFallback(baseFallback, signals);
+
         return NextResponse.json({
           success: true,
           mode: 'fallback',
@@ -210,7 +283,8 @@ Retourne exclusivement ce JSON valide :
         result: parsedResult,
       });
     } catch (geminiError) {
-      const fallbackResult = parseCheckoutStructuredFallback(focusedHtml);
+      const baseFallback = parseCheckoutStructuredFallback(focusedHtml);
+      const fallbackResult = applySignalsToFallback(baseFallback, signals);
 
       return NextResponse.json({
         success: true,
