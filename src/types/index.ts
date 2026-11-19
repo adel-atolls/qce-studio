@@ -1,7 +1,45 @@
+export type ExternalCheckoutSignalInput = {
+  selector: string;
+  placeholder: string;
+  name: string;
+  id: string;
+  hidden: boolean;
+  outerHTML: string;
+};
+
+export type ExternalCheckoutSignalButton = {
+  selector: string;
+  text: string;
+  hidden: boolean;
+  outerHTML: string;
+};
+
+export type ExternalCheckoutSignalTrigger = {
+  selector: string;
+  text: string;
+  hidden: boolean;
+  outerHTML: string;
+};
+
+export type ExternalCheckoutSignalTotal = {
+  selector: string;
+  text: string;
+  hidden: boolean;
+  outerHTML: string;
+};
+
+export type ExternalCheckoutSignals = {
+  couponInputs: ExternalCheckoutSignalInput[];
+  couponButtons: ExternalCheckoutSignalButton[];
+  showFormTriggers: ExternalCheckoutSignalTrigger[];
+  totalCandidates: ExternalCheckoutSignalTotal[];
+};
+
 export type ExternalCheckoutPayload = {
   type: 'INSPECT_CHECKOUT_HTML';
   url: string;
   html: string;
+  signals?: ExternalCheckoutSignals;
 };
 
 export type CheckoutDetectionStructuredResult = {
