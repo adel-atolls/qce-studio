@@ -8,6 +8,7 @@ import {
   CheckoutDetectionHistoryItem,
   CheckoutDetectionStructuredResult,
   ExternalCheckoutPayload,
+  ExternalCheckoutSignals,
 } from '@/types/index';
 import { cleanIncomingHtml } from '@/lib/utils';
 
@@ -34,6 +35,7 @@ export default function DetectionPage() {
   const [fallbackReason, setFallbackReason] = useState('');
   const [modelUsed, setModelUsed] = useState('');
   const [details, setDetails] = useState('');
+  const [signals, setSignals] = useState<ExternalCheckoutSignals | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -93,11 +95,16 @@ export default function DetectionPage() {
       setFallbackReason('');
       setModelUsed('');
       setDetails('');
+      setSignals(payload.signals || null);
 
       const res = await fetch('/api/detection/external-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: payload.url, html: cleanIncomingHtml(payload.html) }),
+        body: JSON.stringify({
+          url: payload.url,
+          html: cleanIncomingHtml(payload.html),
+          signals: payload.signals || null,
+        }),
       });
 
       const responseJson = await res.json();
@@ -200,6 +207,44 @@ export default function DetectionPage() {
           </div>
         ) : null}
 
+        {signals ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Signals received from extension
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-[#08111d] p-4">
+                <div className="text-sm font-semibold text-white">Coupon Inputs</div>
+                <pre className="mt-3 overflow-auto text-xs text-slate-300">
+                  {JSON.stringify(signals.couponInputs, null, 2)}
+                </pre>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-[#08111d] p-4">
+                <div className="text-sm font-semibold text-white">Coupon Buttons</div>
+                <pre className="mt-3 overflow-auto text-xs text-slate-300">
+                  {JSON.stringify(signals.couponButtons, null, 2)}
+                </pre>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-[#08111d] p-4">
+                <div className="text-sm font-semibold text-white">Show Form Triggers</div>
+                <pre className="mt-3 overflow-auto text-xs text-slate-300">
+                  {JSON.stringify(signals.showFormTriggers, null, 2)}
+                </pre>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-[#08111d] p-4">
+                <div className="text-sm font-semibold text-white">Total Candidates</div>
+                <pre className="mt-3 overflow-auto text-xs text-slate-300">
+                  {JSON.stringify(signals.totalCandidates, null, 2)}
+                </pre>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="grid gap-6 xl:grid-cols-[1.45fr_0.75fr]">
           <DetectionInbox
             loading={loading}
@@ -230,7 +275,13 @@ export default function DetectionPage() {
 {`window.postMessage({
   type: 'INSPECT_CHECKOUT_HTML',
   url: window.location.href,
-  html: document.documentElement.outerHTML
+  html: document.documentElement.outerHTML,
+  signals: {
+    couponInputs: [],
+    couponButtons: [],
+    showFormTriggers: [],
+    totalCandidates: []
+  }
 }, '*');`}
           </pre>
         </div>
