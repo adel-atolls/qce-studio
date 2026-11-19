@@ -1,27 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenAI } from '@google/genai';
 import { cleanCheckoutHtml, parseCheckoutStructuredFallback } from '@/lib/gemini';
 
 function isolateCheckoutRelevantHtml(html: string): string {
   const lowered = html.toLowerCase();
 
   const keywords = [
-    'coupon',
-    'cupom',
-    'promo',
-    'discount',
-    'voucher',
-    'checkout',
-    'cart',
-    'bag',
-    'panier',
-    'total',
-    'payment',
-    'subtotal',
-    'shipping',
-    'aplicar',
-    'validar',
-    'apply',
-    'code promo',
+    'Code','Aktion','Rabatt','Gutschein','Gutschein','Gutschein','Gesamt',
+    'Código','Promoção','Desconto','Cupom','Vale','Voucher','Total',
+    'Code','Promo','Réduction','Coupon','Bon','Voucher','Total',
+    'Code','Aktion','Rabatt','Gutschein','Gutschein','Gutschein','Gesamt',
+    'Codice','Promo','Sconto','Coupon','Buono','Voucher','Totale',
+    'Código','Promo','Descuento','Cupón','Bono','Vale','Total',
+    'Code','Actie','Korting','Kortingsbon','Waardebon','Voucher','Totaal',
+    'Kod','Promocja','Rabat','Kupon','Bon','Voucher','Razem',
+    'Código','Promo','Descuento','Cupón','Vale','Bono','Total',
+    'Kod','Kampanj','Rabatt','Kupong','Värdecheck','Presentkort','Totalt'
   ];
 
   let firstIndex = -1;
@@ -41,10 +35,14 @@ function isolateCheckoutRelevantHtml(html: string): string {
   return html.slice(start, end);
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { url, html } = body || {};
+    const requestBody = await req.json();
+    const { url, html } = requestBody || {};
 
     if (!html || typeof html !== 'string') {
       return NextResponse.json(
@@ -58,17 +56,26 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-      const fallback = parseCheckoutStructuredFallback(focusedHtml);
+      const fallbackResult = parseCheckoutStructuredFallback(focusedHtml);
       return NextResponse.json({
         success: true,
         mode: 'fallback',
         url: url || '',
         analyzedAt: new Date().toISOString(),
-        result: fallback,
+        result: fallbackResult,
         fallback: true,
         reason: 'Missing GEMINI_API_KEY',
       });
     }
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'qce-studio-v2',
+        },
+      },
+    });
 
     const promptText = `Tu es un moteur d'extraction DOM et d'automatisation web spécialisé en checkout e-commerce.
 
@@ -84,45 +91,9 @@ IMPORTANT :
 
 Éléments à extraire :
 1. show_form_trigger
-   - Bouton/lien/accordion qui révèle le formulaire coupon
-   - Champs:
-     {
-       "exists": boolean,
-       "required_to_click": boolean,
-       "exact_css_selector": string,
-       "inner_text": string
-     }
-
 2. coupon_input
-   - Champ input du code promo
-   - Champs:
-     {
-       "exists": boolean,
-       "is_hidden": boolean,
-       "exact_css_selector": string,
-       "placeholder": string
-     }
-
 3. coupon_button
-   - Bouton ou action associée immédiatement au champ coupon
-   - Champs:
-     {
-       "exists": boolean,
-       "is_hidden": boolean,
-       "exact_css_selector": string,
-       "button_type": string
-     }
-
 4. total_order
-   - Total final de commande uniquement
-   - Champs:
-     {
-       "exists": boolean,
-       "exact_css_selector": string,
-       "raw_text": string,
-       "numeric_value": number,
-       "currency": string
-     }
 
 URL cible:
 ${url || ''}
@@ -159,67 +130,99 @@ Retourne exclusivement ce JSON valide :
   }
 }`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    const modelName = 'gemini-3.8-flash';
+
+    const tryGemini = async () => {
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: promptText,
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0,
         },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: promptText }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0,
-            responseMimeType: 'application/json',
-          },
-        }),
+      });
+
+      return response.text;
+    };
+
+    try {
+      let rawText = '';
+
+      try {
+        rawText = (await tryGemini()) || '';
+      } catch (firstError: any) {
+        const message =
+          typeof firstError?.message === 'string'
+            ? firstError.message
+            : JSON.stringify(firstError);
+
+        const shouldRetry =
+          message.includes('503') ||
+          message.includes('UNAVAILABLE') ||
+          message.includes('high demand');
+
+        if (!shouldRetry) {
+          throw firstError;
+        }
+
+        await sleep(1200);
+        rawText = (await tryGemini()) || '';
       }
-    );
 
-    const data = await response.json();
+      if (!rawText) {
+        const fallbackResult = parseCheckoutStructuredFallback(focusedHtml);
+        return NextResponse.json({
+          success: true,
+          mode: 'fallback',
+          url: url || '',
+          analyzedAt: new Date().toISOString(),
+          result: fallbackResult,
+          fallback: true,
+          reason: 'Empty Gemini SDK response',
+          modelTried: modelName,
+        });
+      }
 
-    if (!response.ok) {
-      const fallback = parseCheckoutStructuredFallback(focusedHtml);
+      let parsedResult;
+      try {
+        parsedResult = JSON.parse(rawText);
+      } catch {
+        const fallbackResult = parseCheckoutStructuredFallback(focusedHtml);
+        return NextResponse.json({
+          success: true,
+          mode: 'fallback',
+          url: url || '',
+          analyzedAt: new Date().toISOString(),
+          result: fallbackResult,
+          fallback: true,
+          reason: 'Invalid Gemini JSON response',
+          raw: rawText,
+          modelTried: modelName,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        mode: 'gemini',
+        modelUsed: modelName,
+        url: url || '',
+        analyzedAt: new Date().toISOString(),
+        result: parsedResult,
+      });
+    } catch (geminiError) {
+      const fallbackResult = parseCheckoutStructuredFallback(focusedHtml);
+
       return NextResponse.json({
         success: true,
         mode: 'fallback',
         url: url || '',
         analyzedAt: new Date().toISOString(),
-        result: fallback,
+        result: fallbackResult,
         fallback: true,
-        reason: 'Gemini request failed',
-        details: data,
+        reason: geminiError instanceof Error ? geminiError.message : 'Gemini SDK request failed',
+        modelTried: modelName,
       });
     }
-
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      const fallback = parseCheckoutStructuredFallback(focusedHtml);
-      return NextResponse.json({
-        success: true,
-        mode: 'fallback',
-        url: url || '',
-        analyzedAt: new Date().toISOString(),
-        result: fallback,
-        fallback: true,
-        reason: 'Empty Gemini response',
-      });
-    }
-
-    const parsed = JSON.parse(text);
-
-    return NextResponse.json({
-      success: true,
-      mode: 'gemini',
-      url: url || '',
-      analyzedAt: new Date().toISOString(),
-      result: parsed,
-    });
   } catch (error) {
     return NextResponse.json(
       {
