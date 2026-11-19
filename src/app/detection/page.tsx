@@ -8,7 +8,7 @@ import {
   CheckoutDetectionHistoryItem,
   CheckoutDetectionStructuredResult,
   ExternalCheckoutPayload,
-} from '@/types';
+} from '@/types/index';
 import { cleanIncomingHtml } from '@/lib/utils';
 
 declare global {
@@ -17,8 +17,9 @@ declare global {
   }
 }
 
+type DetectionMode = 'gemini' | 'fallback' | '';
+
 export default function DetectionPage() {
-  const [mode, setMode] = useState<'gemini' | 'fallback' | ''>('');
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,11 @@ export default function DetectionPage() {
   const [result, setResult] = useState<CheckoutDetectionStructuredResult | null>(null);
   const [history, setHistory] = useState<CheckoutDetectionHistoryItem[]>([]);
   const [copied, setCopied] = useState(false);
+
+  const [mode, setMode] = useState<DetectionMode>('');
+  const [fallbackReason, setFallbackReason] = useState('');
+  const [modelUsed, setModelUsed] = useState('');
+  const [details, setDetails] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -78,11 +84,15 @@ export default function DetectionPage() {
 
   const analyzePayload = useCallback(async (payload: ExternalCheckoutPayload) => {
     try {
-      setMode(data.mode || '');
       setError(null);
       setLoading(true);
       setCurrentUrl(payload.url || '');
       setReceivedAt(new Date().toISOString());
+
+      setMode('');
+      setFallbackReason('');
+      setModelUsed('');
+      setDetails('');
 
       const res = await fetch('/api/detection/external-checkout', {
         method: 'POST',
@@ -90,18 +100,28 @@ export default function DetectionPage() {
         body: JSON.stringify({ url: payload.url, html: cleanIncomingHtml(payload.html) }),
       });
 
-      const data = await res.json();
+      const responseJson = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || 'Failed to analyze checkout DOM.');
+        throw new Error(responseJson?.error || 'Failed to analyze checkout DOM.');
       }
 
-      setResult(data.result);
+      setResult(responseJson.result || null);
+      setMode((responseJson.mode || '') as DetectionMode);
+      setFallbackReason(responseJson.reason || '');
+      setModelUsed(responseJson.modelUsed || responseJson.modelTried || '');
+
+      const debugDetails =
+        responseJson?.details
+          ? JSON.stringify(responseJson.details, null, 2)
+          : responseJson?.raw || '';
+
+      setDetails(debugDetails);
 
       saveHistory({
-        url: data.url || payload.url,
-        analyzedAt: data.analyzedAt || new Date().toISOString(),
-        result: data.result,
+        url: responseJson.url || payload.url,
+        analyzedAt: responseJson.analyzedAt || new Date().toISOString(),
+        result: responseJson.result,
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'External DOM analysis failed.');
@@ -114,10 +134,10 @@ export default function DetectionPage() {
     if (!mounted) return;
 
     const handleWindowMessage = (event: MessageEvent) => {
-      const data = event.data as ExternalCheckoutPayload;
-      if (!data || data.type !== 'INSPECT_CHECKOUT_HTML') return;
-      if (!data.html || typeof data.html !== 'string') return;
-      analyzePayload(data);
+      const payload = event.data as ExternalCheckoutPayload;
+      if (!payload || payload.type !== 'INSPECT_CHECKOUT_HTML') return;
+      if (!payload.html || typeof payload.html !== 'string') return;
+      analyzePayload(payload);
     };
 
     window.addEventListener('message', handleWindowMessage);
@@ -139,39 +159,81 @@ export default function DetectionPage() {
 
   return (
     <AppShell>
-      <div className="grid gap-6 xl:grid-cols-[1.45fr_0.75fr]">
-        <DetectionInbox
-          loading={loading}
-          error={error}
-          currentUrl={currentUrl}
-          receivedAt={receivedAt}
-          result={result}
-          copied={copied}
-          onCopy={handleCopy}
-        />
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center gap-3">
+          {mode ? (
+            <div
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold ring-1 ${
+                mode === 'gemini'
+                  ? 'bg-cyan-500/10 text-cyan-300 ring-cyan-400/20'
+                  : 'bg-amber-500/10 text-amber-300 ring-amber-400/20'
+              }`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  mode === 'gemini' ? 'bg-cyan-300' : 'bg-amber-300'
+                }`}
+              />
+              {mode === 'gemini' ? 'Mode Gemini' : 'Mode Fallback'}
+            </div>
+          ) : null}
 
-        <DetectionHistory
-          items={history}
-          onSelect={(item) => {
-            setCurrentUrl(item.url);
-            setReceivedAt(item.analyzedAt);
-            setResult(item.result);
-          }}
-        />
-      </div>
+          {modelUsed ? (
+            <div className="rounded-full bg-white/5 px-4 py-2 text-xs text-slate-300 ring-1 ring-white/10">
+              Model: {modelUsed}
+            </div>
+          ) : null}
 
-      <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-        <div className="text-sm font-semibold text-white">Test local rapide</div>
-        <p className="mt-2 text-sm text-slate-400">
-          Tu peux simuler la réception depuis la console du navigateur :
-        </p>
-        <pre className="mt-4 overflow-auto rounded-2xl border border-white/10 bg-[#07101b] p-4 text-xs text-slate-300">
+          {fallbackReason ? (
+            <div className="rounded-full bg-white/5 px-4 py-2 text-xs text-slate-400 ring-1 ring-white/10">
+              Reason: {fallbackReason}
+            </div>
+          ) : null}
+        </div>
+
+        {details ? (
+          <div className="rounded-2xl border border-white/10 bg-[#07101b] p-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Debug details
+            </div>
+            <pre className="overflow-auto text-xs text-slate-300">{details}</pre>
+          </div>
+        ) : null}
+
+        <div className="grid gap-6 xl:grid-cols-[1.45fr_0.75fr]">
+          <DetectionInbox
+            loading={loading}
+            error={error}
+            currentUrl={currentUrl}
+            receivedAt={receivedAt}
+            result={result}
+            copied={copied}
+            onCopy={handleCopy}
+          />
+
+          <DetectionHistory
+            items={history}
+            onSelect={(item) => {
+              setCurrentUrl(item.url);
+              setReceivedAt(item.analyzedAt);
+              setResult(item.result);
+            }}
+          />
+        </div>
+
+        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+          <div className="text-sm font-semibold text-white">Test local rapide</div>
+          <p className="mt-2 text-sm text-slate-400">
+            Tu peux simuler la réception depuis la console du navigateur :
+          </p>
+          <pre className="mt-4 overflow-auto rounded-2xl border border-white/10 bg-[#07101b] p-4 text-xs text-slate-300">
 {`window.postMessage({
   type: 'INSPECT_CHECKOUT_HTML',
   url: window.location.href,
   html: document.documentElement.outerHTML
 }, '*');`}
-        </pre>
+          </pre>
+        </div>
       </div>
     </AppShell>
   );
