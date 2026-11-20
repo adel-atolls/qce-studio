@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 190" width="260" height="137" fill="none">
+  <style>
+    /* Animation de tracé au chargement */
+    .draw-q {
+      stroke-dasharray: 280;
+      stroke-dashoffset: 280;
+      animation: drawStroke 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .draw-arrow {
+      stroke-dasharray: 120;
+      stroke-dashoffset: 120;
+      animation: drawStroke 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.45s forwards;
+    }
+
+    .draw-check {
+      stroke-dasharray: 45;
+      stroke-dashoffset: 45;
+      animation: drawStroke 0.35s ease-out 0.8s forwards;
+    }
+
+    .draw-brace-left {
+      stroke-dasharray: 110;
+      stroke-dashoffset: 110;
+      animation: drawStroke 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.65s forwards;
+    }
+
+    .draw-brace-right {
+      stroke-dasharray: 110;
+      stroke-dashoffset: 110;
+      animation: drawStroke 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.85s forwards;
+    }
+
+    .fade-in-ce {
+      opacity: 0;
+      transform: translateY(4px);
+      animation: fadeUp 0.5s ease-out 0.95s forwards;
+    }
+
+    .fade-in-studio {
+      opacity: 0;
+      letter-spacing: 0.25em;
+      animation: revealStudio 0.7s cubic-bezier(0.22, 1, 0.36, 1) 1.15s forwards;
+    }
+
+    @keyframes drawStroke {
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    @keyframes fadeUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes revealStudio {
+      to {
+        opacity: 1;
+        letter-spacing: 0.08em;
+      }
+    }
+  </style>
+
+  <!-- 1. Anneau du Q (Noir Carbone #0F172A) -->
+  <path 
+    class="draw-q"
+    d="M 118 82 A 34 34 0 1 0 92 103" 
+    stroke="#0F172A" 
+    stroke-width="13" 
+    stroke-linecap="round"
+  />
+
+  <!-- 2. Queue en chevron/flèche de code '>' du Q -->
+  <path 
+    class="draw-arrow"
+    d="M 80 76 L 105 98 L 93 112" 
+    stroke="#0F172A" 
+    stroke-width="11" 
+    stroke-linecap="square" 
+    stroke-linejoin="miter"
+  />
+
+  <!-- 3. Petite coche de validation intégrée -->
+  <path 
+    class="draw-check"
+    d="M 107 90 L 113 96 L 124 81" 
+    stroke="#0F172A" 
+    stroke-width="4.5" 
+    stroke-linecap="round" 
+    stroke-linejoin="round"
+  />
+
+  <!-- 4. Accolade gauche '{' (Cyan Électrique #0EA5E9) -->
+  <path 
+    class="draw-brace-left"
+    d="M 152 38 L 144 38 C 139 38 137 41 137 46 L 137 64 C 137 69 133 72 128 72 C 133 72 137 75 137 80 L 137 98 C 137 103 139 106 144 106 L 152 106" 
+    stroke="#0EA5E9" 
+    stroke-width="7.5" 
+    stroke-linecap="round" 
+    stroke-linejoin="round"
+  />
+
+  <!-- 5. Lettres 'ce' -->
+  <text 
+    class="fade-in-ce"
+    x="159" 
+    y="91" 
+    fill="#0F172A" 
+    font-family="Inter, system-ui, -apple-system, sans-serif" 
+    font-weight="800" 
+    font-size="56"
+  >ce</text>
+
+  <!-- 6. Accolade droite '}' (Cyan Électrique #0EA5E9) -->
+  <path 
+    class="draw-brace-right"
+    d="M 232 38 L 240 38 C 245 38 247 41 247 46 L 247 64 C 247 69 251 72 256 72 C 251 72 247 75 247 80 L 247 98 C 247 103 245 106 240 106 L 232 106" 
+    stroke="#0EA5E9" 
+    stroke-width="7.5" 
+    stroke-linecap="round" 
+    stroke-linejoin="round"
+  />
+
+  <!-- 7. Texte 'Studio' en dessous -->
+  <text 
+    class="fade-in-studio"
+    x="175" 
+    y="156" 
+    text-anchor="middle" 
+    fill="#0F172A" 
+    font-family="'JetBrains Mono', 'Fira Code', monospace" 
+    font-weight="600" 
+    font-size="34"
+  >Studio</text>
+</svg>
