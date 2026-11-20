@@ -9,9 +9,9 @@ export default function HomePage() {
   return (
     <AppShell>
       <div className="space-y-8">
-        <section className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_35%),rgba(255,255,255,0.03)] p-8">
+        <section className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(36,200,244,0.14),transparent_35%),rgba(255,255,255,0.03)] p-8">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300 ring-1 ring-cyan-400/20">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[rgba(36,200,244,0.10)] px-3 py-1 text-xs font-semibold text-[#24C8F4] ring-1 ring-[rgba(36,200,244,0.20)]">
               <Sparkles className="h-4 w-4" />
               <span>New QCE Studio V2</span>
             </div>
