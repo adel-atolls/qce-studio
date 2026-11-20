@@ -24,6 +24,16 @@ function isolateCheckoutRelevantHtml(html: string): string {
     'validar',
     'apply',
     'code promo',
+    'Code','Aktion','Rabatt','Gutschein','Gutschein','Gutschein','Gesamt',
+    'Código','Promoção','Desconto','Cupom','Vale','Voucher','Total',
+    'Code','Promo','Réduction','Coupon','Bon','Voucher','Total',
+    'Code','Aktion','Rabatt','Gutschein','Gutschein','Gutschein','Gesamt',
+    'Codice','Promo','Sconto','Coupon','Buono','Voucher','Totale',
+    'Código','Promo','Descuento','Cupón','Bono','Vale','Total',
+    'Code','Actie','Korting','Kortingsbon','Waardebon','Voucher','Totaal',
+    'Kod','Promocja','Rabat','Kupon','Bon','Voucher','Razem',
+    'Código','Promo','Descuento','Cupón','Vale','Bono','Total',
+    'Kod','Kampanj','Rabatt','Kupong','Värdecheck','Presentkort','Totalt'
   ];
 
   let firstIndex = -1;
